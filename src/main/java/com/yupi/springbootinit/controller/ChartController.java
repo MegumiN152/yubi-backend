@@ -30,6 +30,7 @@ import com.yupi.springbootinit.service.ChartService;
 import com.yupi.springbootinit.service.UserService;
 import com.yupi.springbootinit.utils.ChartDataUtil;
 import com.yupi.springbootinit.utils.ExcelUtils;
+import com.yupi.springbootinit.utils.InvalidEchartsUtil;
 import com.yupi.springbootinit.utils.SqlUtils;
 import com.yupi.yucongming.dev.client.YuCongMingClient;
 import com.yupi.yucongming.dev.model.DevChatRequest;
@@ -338,6 +339,9 @@ public class ChartController {
         chart.setGenResult(result.getGenResult());
         chart.setUserId(loginUser.getId());
         chart.setStatus(ResultEnum.SUCCEED.getDes());
+        if (!InvalidEchartsUtil.checkEchartsTest(result.getGenChart())){
+            chart.setStatus(ResultEnum.FAILED.getDes());
+        }
         //单独生成图表信息表
         chartService.createTable(chart.getId(), multipartFile);
         boolean saveResult = chartService.save(chart);
@@ -478,15 +482,6 @@ public class ChartController {
 
         //拼接提示词、分析目标、和原始数据
         String csvData = ExcelUtils.excelToCsv(multipartFile);
-        StringBuilder userInput = new StringBuilder();
-        userInput.append("分析需求:").append("\n");
-        String userGoal=goal;
-        if (StringUtils.isNotBlank(chartType)){
-            userGoal+=",请使用"+chartType;
-        }
-        userInput.append(userGoal).append("\n");
-        userInput.append("原始数据:").append("\n");
-        userInput.append(csvData).append("\n");
 
         Chart chart=new Chart();
         chart.setName(name);

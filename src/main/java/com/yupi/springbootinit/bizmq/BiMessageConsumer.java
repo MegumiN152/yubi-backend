@@ -54,6 +54,7 @@ public class BiMessageConsumer {
         //检查用户任务计数器
         int userTaskCount=(int) getRunningTaskCount(userId);
         try {
+            //检验当前用户执行任务数是否超过最大值
             if (userTaskCount<=BiMqConstant.MAX_CONCURRENT_CHARTS) {
                 Chart updateChart = new Chart();
                 updateChart.setId(chart.getId());
@@ -65,7 +66,9 @@ public class BiMessageConsumer {
                 }
                 //调用ai
                 ChartGenResult result = ChartDataUtil.getGenResult(aiManager, chart.getGoal(), chart.getChartData(), chart.getChartType());
-
+                if (!InvalidEchartsUtil.checkEchartsTest(result.getGenChart())){
+                    handleChartUpdateError(chart.getId(), "ai生成的代码出错了");
+                }
                 Chart updateChartResult = new Chart();
                 updateChartResult.setId(chart.getId());
                 updateChartResult.setGenResult(result.getGenResult());

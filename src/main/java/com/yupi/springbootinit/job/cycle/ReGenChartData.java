@@ -8,6 +8,7 @@ import com.yupi.springbootinit.model.entity.Chart;
 import com.yupi.springbootinit.model.enums.ResultEnum;
 import com.yupi.springbootinit.service.ChartService;
 import com.yupi.springbootinit.utils.ChartDataUtil;
+import com.yupi.springbootinit.utils.InvalidEchartsUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -55,6 +56,9 @@ public class ReGenChartData{
         chart1.setId(chartId);
         chart1.setGenResult(genResult.getGenResult());
         chart1.setStatus(ResultEnum.SUCCEED.getDes());
+        if (!InvalidEchartsUtil.checkEchartsTest(genResult.getGenChart())){
+            chart1.setStatus(ResultEnum.FAILED.getDes());
+        }
         try {
             chartService.updateById(chart1);
         } catch (Exception e) {
