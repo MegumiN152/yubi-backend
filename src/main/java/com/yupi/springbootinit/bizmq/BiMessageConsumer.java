@@ -66,13 +66,14 @@ public class BiMessageConsumer {
                 }
                 //调用ai
                 ChartGenResult result = ChartDataUtil.getGenResult(aiManager, chart.getGoal(), chart.getChartData(), chart.getChartType());
-                if (!InvalidEchartsUtil.checkEchartsTest(result.getGenChart())){
+                String genchart=ChartDataUtil.replaceJson(result.getGenChart());
+                if (!InvalidEchartsUtil.checkEchartsTest(genchart)){
                     handleChartUpdateError(chart.getId(), "ai生成的代码出错了");
                 }
                 Chart updateChartResult = new Chart();
                 updateChartResult.setId(chart.getId());
                 updateChartResult.setGenResult(result.getGenResult());
-                updateChartResult.setGenChart(result.getGenChart());
+                updateChartResult.setGenChart(genchart);
                 updateChartResult.setStatus(ResultEnum.SUCCEED.getDes());
                 boolean b1 = chartService.updateById(updateChartResult);
                 if (!b1) {

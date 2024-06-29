@@ -1,6 +1,13 @@
 package com.yupi.springbootinit.utils;
 
 import cn.hutool.core.util.ObjectUtil;
+import cn.hutool.json.JSONArray;
+import cn.hutool.json.JSONException;
+import cn.hutool.json.JSONObject;
+import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParser;
+import com.google.gson.JsonSyntaxException;
 import com.yupi.springbootinit.common.ErrorCode;
 import com.yupi.springbootinit.constant.CommonConstant;
 import com.yupi.springbootinit.exception.BusinessException;
@@ -25,6 +32,8 @@ import java.util.stream.Collectors;
 public class ChartDataUtil {
     @Resource
     private ChartService chartService;
+    private static final Gson gson = new Gson();
+
 
     public static String changeDataToCSV(List<Map<String, Object>> chartOriginalData) {
         List<Set<String>> columnSets = chartOriginalData.stream()
@@ -91,11 +100,27 @@ public class ChartDataUtil {
     public static ChartGenResult getGenResult(final AiManager aiManager, final String goal, final String cvsData, final String chartType) {
         String promote = AiManager.PRECONDITION + "分析需求 " + goal + " \n原始数据如下: " + cvsData + "\n生成图标的类型是: " + chartType;
         String resultData = aiManager.sendMesToAIUseXingHuo(promote);
+        log.info(resultData);
         log.info("AI 生成的信息: {}", resultData);
         ThrowUtils.throwIf(resultData.split("'【【【【【'").length < 3, ErrorCode.SYSTEM_ERROR);
         String genChart = resultData.split("'【【【【【'")[1].trim();
         String genResult = resultData.split("'【【【【【'")[2].trim();
         return new ChartGenResult(genChart, genResult);
+    }
+    public static String replaceJson(String jsonString){
+        return jsonString.replace("'","\"");
+    }
+
+    public static boolean isJsonValid(String jsonString) {
+        // 替换单引号为双引号
+        try {
+            JsonElement jsonElement = JsonParser.parseString(jsonString);
+            log.info("Valid JSON format: {}", jsonString);
+            return true;
+        } catch (JsonSyntaxException e) {
+            log.error("Invalid JSON format: {}", jsonString);
+            return false;
+        }
     }
 
 }

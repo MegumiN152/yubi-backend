@@ -51,12 +51,13 @@ public class ReGenChartData{
         String goal = chart.getGoal();
         String chartType = chart.getChartType();
         ChartGenResult genResult = ChartDataUtil.getGenResult(aiManager, goal,chartData,chartType);
+        String genchart=ChartDataUtil.replaceJson(genResult.getGenChart());
         Chart chart1 = new Chart();
-        chart1.setGenChart(genResult.getGenChart());
+        chart1.setGenChart(genchart);
         chart1.setId(chartId);
         chart1.setGenResult(genResult.getGenResult());
         chart1.setStatus(ResultEnum.SUCCEED.getDes());
-        if (!InvalidEchartsUtil.checkEchartsTest(genResult.getGenChart())){
+        if (!InvalidEchartsUtil.checkEchartsTest(genchart)){
             chart1.setStatus(ResultEnum.FAILED.getDes());
         }
         try {

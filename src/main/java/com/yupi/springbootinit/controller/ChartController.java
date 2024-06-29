@@ -329,17 +329,18 @@ public class ChartController {
         // 压缩后的数据
         String csvData = ExcelUtils.excelToCsv(multipartFile);
         ChartGenResult result = ChartDataUtil.getGenResult(aiManager,goal,csvData,chartType);
+        String genchart=ChartDataUtil.replaceJson(result.getGenChart());
         // 插入到数据库
         Chart chart = new Chart();
         chart.setName(name);
         chart.setGoal(goal);
         chart.setChartData(csvData);
         chart.setChartType(chartType);
-        chart.setGenChart(result.getGenChart());
+        chart.setGenChart(genchart);
         chart.setGenResult(result.getGenResult());
         chart.setUserId(loginUser.getId());
         chart.setStatus(ResultEnum.SUCCEED.getDes());
-        if (!InvalidEchartsUtil.checkEchartsTest(result.getGenChart())){
+        if (!InvalidEchartsUtil.checkEchartsTest(genchart)){
             chart.setStatus(ResultEnum.FAILED.getDes());
         }
         //单独生成图表信息表
