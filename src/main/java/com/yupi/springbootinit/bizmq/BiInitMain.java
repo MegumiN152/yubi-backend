@@ -4,8 +4,10 @@ import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
 
-import java.io.IOException;
-import java.util.concurrent.TimeoutException;
+
+import java.util.HashMap;
+import java.util.Map;
+
 
 /**
  * @author 黄昊
@@ -14,18 +16,23 @@ import java.util.concurrent.TimeoutException;
 public class BiInitMain {
     public static void main(String[] args) {
         try {
-            ConnectionFactory connectionFactory = new ConnectionFactory();
-            Connection connection = connectionFactory.newConnection();
+            ConnectionFactory factory = new ConnectionFactory();
+            Connection connection = factory.newConnection();
             Channel channel = connection.createChannel();
-            String EXCHANGE_NAME=BiMqConstant.BI_EXCHANGE_NAME;
-            channel.exchangeDeclare(EXCHANGE_NAME,"direct");
-            String queueName=BiMqConstant.BI_QUEUE_NAME;
-            channel.queueDeclare(queueName,true,false,false,null);
-            channel.queueBind(queueName,EXCHANGE_NAME,BiMqConstant.BI_ROUTEING_KEY);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        } catch (TimeoutException e) {
-            throw new RuntimeException(e);
+            // 声明死信队列
+            channel.exchangeDeclare(BiMqConstant.BI_DLX_EXCHANGE_NAME, "direct");
+            channel.queueDeclare(BiMqConstant.BI_DLX_QUEUE_NAME, true, false, false, null);
+            channel.queueBind(BiMqConstant.BI_DLX_QUEUE_NAME, BiMqConstant.BI_DLX_EXCHANGE_NAME, BiMqConstant.BI_DLX_ROUTING_KEY);
+
+            channel.exchangeDeclare(BiMqConstant.BI_EXCHANGE_NAME, "direct");
+
+            Map<String, Object> arg = new HashMap<String, Object>();
+            arg.put("x-dead-letter-exchange", BiMqConstant.BI_DLX_EXCHANGE_NAME);
+            arg.put("x-dead-letter-routing-key", BiMqConstant.BI_DLX_ROUTING_KEY);
+            channel.queueDeclare(BiMqConstant.BI_QUEUE_NAME, true, false, false, arg);
+            channel.queueBind(BiMqConstant.BI_QUEUE_NAME, BiMqConstant.BI_EXCHANGE_NAME, BiMqConstant.BI_ROUTING_KEY);
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 }

@@ -17,6 +17,8 @@ public interface CommonConstant {
      * 降序
      */
     String SORT_ORDER_DESC = " descend";
+    String DS_CHAT_MODEL="deepseek-chat";
+    String DS_CODE_MODEL="deepseek-coder";
 
     Long BI_MODEL_ID=1798553695154806785L;
     

@@ -1,5 +1,7 @@
 package com.yupi.springbootinit;
 
+import com.rabbitmq.client.Connection;
+import com.rabbitmq.client.ConnectionFactory;
 import com.yupi.springbootinit.mapper.ChartMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -17,11 +19,18 @@ class ChartMapperTest {
     @Resource
     private ChartMapper chartMapper;
 
-    @Test
-    void queryChartData() {
-        String chartId = "1798693507896987650";
-        String querySql = String.format("select * from chart_%s", chartId);
-        List<Map<String, Object>> resultData = chartMapper.queryChartData(querySql);
-        System.out.println(resultData);
-    }
+        public static void main(String[] args) throws Exception {
+            ConnectionFactory factory = new ConnectionFactory();
+            factory.setHost("47.120.1.180");
+            factory.setPort(5672);
+            factory.setUsername("admin");
+            factory.setPassword("abcdef");
+            factory.setVirtualHost("/");
+            try (Connection connection = factory.newConnection()) {
+                System.out.println("Connected to RabbitMQ successfully!");
+            }
+        }
+
+
+
 }

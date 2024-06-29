@@ -20,6 +20,7 @@ public class RedissionConfig {
     private Integer database;
     private String host;
     private String port;
+    private String password;
 
     //    private String password;
     @Bean
@@ -27,7 +28,8 @@ public class RedissionConfig {
         Config config = new Config();
         config.useSingleServer()
                 .setAddress("redis://" + host + ":" + port)
-                .setDatabase(1);
+                .setDatabase(database)
+                .setPassword(password);
         RedissonClient redissonClient = Redisson.create(config);
         return redissonClient;
     }

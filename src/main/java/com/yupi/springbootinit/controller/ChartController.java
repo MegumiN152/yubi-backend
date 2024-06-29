@@ -8,6 +8,7 @@ import com.google.common.base.Predicates;
 import com.google.gson.Gson;
 import com.yupi.springbootinit.annotation.AuthCheck;
 import com.yupi.springbootinit.bizmq.BiMessageProducer;
+import com.yupi.springbootinit.bizmq.BiMqConstant;
 import com.yupi.springbootinit.common.BaseResponse;
 import com.yupi.springbootinit.common.DeleteRequest;
 import com.yupi.springbootinit.common.ErrorCode;
@@ -24,24 +25,30 @@ import com.yupi.springbootinit.model.dto.file.UploadFileRequest;
 import com.yupi.springbootinit.model.entity.Chart;
 import com.yupi.springbootinit.model.entity.User;
 import com.yupi.springbootinit.model.enums.FileUploadBizEnum;
+import com.yupi.springbootinit.model.enums.ResultEnum;
 import com.yupi.springbootinit.service.ChartService;
 import com.yupi.springbootinit.service.UserService;
+import com.yupi.springbootinit.utils.ChartDataUtil;
 import com.yupi.springbootinit.utils.ExcelUtils;
 import com.yupi.springbootinit.utils.SqlUtils;
 import com.yupi.yucongming.dev.client.YuCongMingClient;
 import com.yupi.yucongming.dev.model.DevChatRequest;
 import com.yupi.yucongming.dev.model.DevChatResponse;
+import io.swagger.annotations.ApiOperation;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.util.FileCopyUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import java.io.File;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.*;
@@ -75,7 +82,6 @@ public class ChartController {
     private ThreadPoolExecutor threadPoolExecutor;
     @Resource
     private BiMessageProducer biMessageProducer;
-
 
     // region 增删改查
 
@@ -319,37 +325,19 @@ public class ChartController {
         // 2号,20
         // 3号,30
 
-        // 构造用户输入
-        StringBuilder userInput = new StringBuilder();
-        userInput.append("分析需求：").append("\n");
-
-        // 拼接分析目标
-        String userGoal = goal;
-        if (StringUtils.isNotBlank(chartType)) {
-            userGoal += "，请使用" + chartType;
-        }
-        userInput.append(userGoal).append("\n");
-        userInput.append("原始数据：").append("\n");
         // 压缩后的数据
         String csvData = ExcelUtils.excelToCsv(multipartFile);
-        userInput.append(csvData).append("\n");
-        String result = aiManager.doChat(userInput.toString(), biModelId);
-        String[] splits = result.split("【【【【【");
-        if (splits.length < 3) {
-            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "AI 生成错误");
-        }
-        String genChart = splits[1].trim();
-        String genResult = splits[2].trim();
+        ChartGenResult result = ChartDataUtil.getGenResult(aiManager,goal,csvData,chartType);
         // 插入到数据库
         Chart chart = new Chart();
         chart.setName(name);
         chart.setGoal(goal);
         chart.setChartData(csvData);
         chart.setChartType(chartType);
-        chart.setGenChart(genChart);
-        chart.setGenResult(genResult);
+        chart.setGenChart(result.getGenChart());
+        chart.setGenResult(result.getGenResult());
         chart.setUserId(loginUser.getId());
-        chart.setStatus("succeed");
+        chart.setStatus(ResultEnum.SUCCEED.getDes());
         //单独生成图表信息表
         chartService.createTable(chart.getId(), multipartFile);
         boolean saveResult = chartService.save(chart);
@@ -357,8 +345,8 @@ public class ChartController {
            handleChartUpdateError(chart.getId(),"图表保存失败");
        }
         BiResponse biResponse = new BiResponse();
-        biResponse.setGenChart(genChart);
-        biResponse.setGenResult(genResult);
+        biResponse.setGenChart(result.getGenChart());
+        biResponse.setGenResult(result.getGenResult());
         biResponse.setChartId(chart.getId());
         return ResultUtils.success(biResponse);
     }
@@ -416,7 +404,7 @@ public class ChartController {
         chart.setGoal(goal);
         chart.setChartData(csvData);
         chart.setChartType(chartType);
-        chart.setStatus("wait");
+        chart.setStatus(ResultEnum.WAIT.getDes());
         chart.setUserId(loginUser.getId());
         boolean saveResult = chartService.save(chart);
         ThrowUtils.throwIf(!saveResult,ErrorCode.SYSTEM_ERROR,"图表保存失败");
@@ -424,7 +412,7 @@ public class ChartController {
         CompletableFuture.runAsync(()->{
             Chart updateChart = new Chart();
             updateChart.setId(chart.getId());
-            updateChart.setStatus("running");
+            updateChart.setStatus(ResultEnum.RUNNING.getDes());
             boolean b = chartService.updateById(updateChart);
             if (!b){
                 handleChartUpdateError(chart.getId(),"图表执行中状态更新失败");
@@ -443,7 +431,7 @@ public class ChartController {
             updateChartResult.setId(chart.getId());
             updateChartResult.setGenResult(genResult);
             updateChartResult.setGenChart(genChart);
-            updateChartResult.setStatus("succeed");
+            updateChartResult.setStatus(ResultEnum.SUCCEED.getDes());
             boolean b1 = chartService.updateById(updateChartResult);
             if (!b1){
                 handleChartUpdateError(chart.getId(),"更新图表成功状态失败");
@@ -505,7 +493,7 @@ public class ChartController {
         chart.setGoal(goal);
         chart.setChartData(csvData);
         chart.setChartType(chartType);
-        chart.setStatus("wait");
+        chart.setStatus(ResultEnum.WAIT.getDes());
         chart.setUserId(loginUser.getId());
         boolean saveResult = chartService.save(chart);
         ThrowUtils.throwIf(!saveResult,ErrorCode.SYSTEM_ERROR,"图表保存失败");
@@ -516,32 +504,50 @@ public class ChartController {
         biResponse.setChartId(newChartId);
         return ResultUtils.success(biResponse);
     }
+    @PostMapping("/gen/retry")
+    @AuthCheck(mustRole = UserConstant.DEFAULT_ROLE)
+    public BaseResponse<BiResponse> retryGenChart(@RequestBody final ChartRetryRequest chartRegenRequest,HttpServletRequest httpServletRequest){
+        //参数检验
+        ThrowUtils.throwIf(chartRegenRequest == null, ErrorCode.PARAMS_ERROR);
+        User loginUser = userService.getLoginUser(httpServletRequest);
+        Long chartId= chartRegenRequest.getId();
+        String name = chartRegenRequest.getName();
+        String goal = chartRegenRequest.getGoal();
+        String chartData = chartRegenRequest.getChartData();
+        String chartType = chartRegenRequest.getChartType();
+        ThrowUtils.throwIf(chartId == null || chartId <= 0, ErrorCode.PARAMS_ERROR, "图表不存在");
+        ThrowUtils.throwIf(StringUtils.isBlank(name), ErrorCode.PARAMS_ERROR, "图表名称为空");
+        ThrowUtils.throwIf(StringUtils.isBlank(goal), ErrorCode.PARAMS_ERROR, "分析目标为空");
+        ThrowUtils.throwIf(StringUtils.isBlank(chartData), ErrorCode.PARAMS_ERROR, "原始数据为空");
+        ThrowUtils.throwIf(StringUtils.isBlank(chartType), ErrorCode.PARAMS_ERROR, "图表类型为空");
+        //限流
+        redisLimiterManager.doRateLimit("genChartByAi_"+loginUser.getId());
+        //将修改后的数据填到chart中
+        Chart chart = new Chart();
+        chart.setId(chartId);
+        chart.setChartType(chartType);
+        chart.setChartData(chartData);
+        chart.setName(name);
+        chart.setGoal(goal);
+        chart.setStatus(ResultEnum.WAIT.getDes());
+        //更新数据库
+        chartService.updateById(chart);
+        //将chartid发送到消息队列
+        biMessageProducer.sendMessage(String.valueOf(chartId));
+        BiResponse biResponse=new BiResponse();
+        biResponse.setChartId(chartId);
+        return ResultUtils.success(biResponse) ;
+    }
+
     private void handleChartUpdateError(long chartId,String execMessage){
         Chart updateChartResult = new Chart();
         updateChartResult.setId(chartId);
-        updateChartResult.setStatus("failed");
+        updateChartResult.setStatus(ResultEnum.FAILED.getDes());
         updateChartResult.setExecMessage(execMessage);
         boolean b = chartService.updateById(updateChartResult);
         if (!b){
             log.error("更新图表状态失败"+chartId+" , "+execMessage);
         }
     }
-    private String buildUserInput(Chart chart){
-        String goal=chart.getGoal();
-        String chartType=chart.getChartType();
-        String csvData=chart.getChartData();
-
-        StringBuilder userInput = new StringBuilder();
-        userInput.append("分析需求:").append("\n");
-        String userGoal=goal;
-        if (StringUtils.isNotBlank(chartType)){
-            userGoal+=",请使用"+chartType;
-        }
-        userInput.append(userGoal).append("\n");
-        userInput.append("原始数据:").append("\n");
-        userInput.append(csvData).append("\n");
-        return userInput.toString();
-    }
-
 
 }

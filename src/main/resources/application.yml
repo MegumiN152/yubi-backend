@@ -28,12 +28,13 @@ spring:
     host: localhost
     port: 6379
     timeout: 5000
+    password: 123456
   # Elasticsearch 配置
   # todo 需替换配置，然后取消注释
-#  elasticsearch:
-#    uris: http://localhost:9200
-#    username: root
-#    password: 123456
+  #  elasticsearch:
+  #    uris: http://localhost:9200
+  #    username: root
+  #    password: 123456
   # 文件上传
   servlet:
     multipart:
@@ -89,5 +90,13 @@ cos:
     bucket: xxx
 yuapi:
   client:
-    secret-key: vnso5grkwyfaczttzhb670qd0ro46hny
-    access-key: 94zqap84192euneqnf5woa39l8m3hjaq
+    secret-key: ${secret-key}
+    access-key: ${access-key}
+dsapi:
+  client:
+    api-key: ${api-key}
+xunfei:
+  client:
+    appid: ${appid}
+    apiSecret: ${apiSecret}
+    apiKey: ${apiKey}

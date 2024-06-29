@@ -14,8 +14,26 @@ import java.util.Map;
 public interface ChartMapper extends BaseMapper<Chart> {
     @Update("${sql}")
     void executeSQL(@Param("sql") String sql);
+    /**
+     * 动态的创建数据库
+     * @param creatTableSQL
+     */
+    void createTable(final String creatTableSQL);
 
-    List<Map<String, Object>> queryChartData(String querySql);
+    /**
+     * 向动态创建的数据库之中插入数据
+     *
+     * @param insertCVSData
+     * @return
+     */
+    void insertValue(final String insertCVSData);
+    /**
+     * 查询保存数据表的信息
+     *
+     * @param tableName
+     * @return
+     */
+    List<Map<String, Object>> queryChartData(final Long tableName);
 }
 
 
