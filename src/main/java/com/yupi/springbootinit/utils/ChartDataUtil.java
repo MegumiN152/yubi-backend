@@ -98,7 +98,7 @@ public class ChartDataUtil {
      * @return
      */
     public static ChartGenResult getGenResult(final AiManager aiManager, final String goal, final String cvsData, final String chartType) {
-        String promote = AiManager.PRECONDITION + "分析需求 " + goal + " \n原始数据如下: " + cvsData + "\n生成图标的类型是: " + chartType;
+        String promote = AiManager.PRECONDITION + "分析需求 " + goal + " \n原始数据如下: " + cvsData + "\n生成图表的类型是: " + chartType;
         String resultData = aiManager.sendMesToAIUseXingHuo(promote);
         log.info(resultData);
         log.info("AI 生成的信息: {}", resultData);
