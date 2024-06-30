@@ -71,6 +71,10 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             // 3. 插入数据
             User user = new User();
             user.setUserAccount(userAccount);
+            //暂时将注册时的用户名改为账号名
+            user.setUserName(userAccount);
+            //设置用户默认头像
+            user.setUserAvatar(CommonConstant.USER_AVATAR);
             user.setUserPassword(encryptPassword);
             boolean saveResult = this.save(user);
             if (!saveResult) {
