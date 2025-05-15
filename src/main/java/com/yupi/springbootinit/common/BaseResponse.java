@@ -7,8 +7,8 @@ import lombok.Data;
  * 通用返回类
  *
  * @param <T>
- * @author <a href="https://github.com/liyupi">程序员鱼皮</a>
- * @from <a href="https://yupi.icu">编程导航知识星球</a>
+ * @author <a href="https://github.com/MegumiN152">黄昊</a>
+ * @from <a href="http://www.huanghao.icu/">GBC智能BI</a>
  */
 @Data
 public class BaseResponse<T> implements Serializable {

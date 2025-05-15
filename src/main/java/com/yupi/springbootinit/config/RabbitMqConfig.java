@@ -21,6 +21,10 @@ public class RabbitMqConfig {
     public static final String BI_EXCHANGE_NAME = "bi_exchange";
     public static final String BI_ROUTING_KEY = "bi_routing_key";
 
+    public static final String BI_TEAM_QUEUE_NAME = "bi_team_queue";
+    public static final String BI_TEAM_EXCHANGE_NAME = "bi_team_exchange";
+    public static final String BI_TEAM_ROUTING_KEY = "bi_team_routing_key";
+
     @Bean
     public DirectExchange dlxExchange() {
         return new DirectExchange(BI_DLX_EXCHANGE_NAME);
@@ -42,6 +46,11 @@ public class RabbitMqConfig {
     }
 
     @Bean
+    public DirectExchange team_exchange() {
+        return new DirectExchange(BI_TEAM_EXCHANGE_NAME);
+    }
+
+    @Bean
     public Queue queue() {
         Map<String, Object> args = new HashMap<>();
         args.put("x-dead-letter-exchange", BI_DLX_EXCHANGE_NAME);
@@ -50,7 +59,16 @@ public class RabbitMqConfig {
     }
 
     @Bean
+    public Queue team_queue() {
+        return new Queue(BI_TEAM_QUEUE_NAME, true,false,false,null);
+    }
+
+    @Bean
     public Binding binding() {
         return BindingBuilder.bind(queue()).to(exchange()).with(BI_ROUTING_KEY);
+    }
+    @Bean
+    public Binding team_binding() {
+        return BindingBuilder.bind(team_queue()).to(team_exchange()).with(BI_TEAM_ROUTING_KEY);
     }
 }

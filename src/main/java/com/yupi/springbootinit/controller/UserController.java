@@ -6,7 +6,7 @@ import com.yupi.springbootinit.common.BaseResponse;
 import com.yupi.springbootinit.common.DeleteRequest;
 import com.yupi.springbootinit.common.ErrorCode;
 import com.yupi.springbootinit.common.ResultUtils;
-import com.yupi.springbootinit.config.WxOpenConfig;
+import com.yupi.springbootinit.config.MinioConfiguration;
 import com.yupi.springbootinit.constant.UserConstant;
 import com.yupi.springbootinit.exception.BusinessException;
 import com.yupi.springbootinit.exception.ThrowUtils;
@@ -21,22 +21,24 @@ import com.yupi.springbootinit.model.vo.LoginUserVO;
 import com.yupi.springbootinit.model.vo.UserVO;
 import com.yupi.springbootinit.service.UserService;
 import java.util.List;
+import java.util.Optional;
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
+
+import io.minio.MinioClient;
+import io.minio.PutObjectArgs;
+import io.minio.RemoveObjectArgs;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * 用户接口
  *
- * @author <a href="https://github.com/liyupi">程序员鱼皮</a>
- * @from <a href="https://yupi.icu">编程导航知识星球</a>
+ * @author <a href="https://github.com/MegumiN152">黄昊</a>
+ * @from <a href="http://www.huanghao.icu/">GBC智能BI</a>
  */
 @RestController
 @RequestMapping("/user")
@@ -47,8 +49,10 @@ public class UserController {
     private UserService userService;
 
     @Resource
-    private WxOpenConfig wxOpenConfig;
+    private MinioClient minioClient;
 
+    @Resource
+    private MinioConfiguration minioConfiguration;
     // region 登录相关
 
     /**
@@ -138,10 +142,16 @@ public class UserController {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         User user = new User();
-        BeanUtils.copyProperties(userAddRequest, user);
-        boolean result = userService.save(user);
-        ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
-        return ResultUtils.success(user.getId());
+        user.setUserName(userAddRequest.getUserName());
+        user.setUserAvatar(userAddRequest.getUserAvatar());
+        user.setUserPassword(userAddRequest.getUserPassword());
+        user.setUserAccount(userAddRequest.getUserAccount());
+        user.setUserRole(userAddRequest.getUserRole());
+        if (StringUtils.isAnyBlank(user.getUserAccount(),user.getUserPassword())){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        long l = userService.userAdd(user);
+        return ResultUtils.success(l);
     }
 
     /**
@@ -231,7 +241,14 @@ public class UserController {
                 userService.getQueryWrapper(userQueryRequest));
         return ResultUtils.success(userPage);
     }
-
+    /**
+     * 获取所有用户ID和昵称
+     */
+    @GetMapping("/list/all")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<List<User>> listAllUsers() {
+        return ResultUtils.success(userService.list());
+    }
     /**
      * 分页获取用户封装列表
      *
@@ -279,5 +296,93 @@ public class UserController {
         boolean result = userService.updateById(user);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         return ResultUtils.success(true);
+    }
+
+    @PostMapping("/upload/avatar")
+    public BaseResponse<String> uploadAvatar(@RequestParam("file") MultipartFile file, @RequestParam("userId") Long userId) {
+        try {
+            // 校验文件类型
+            String contentType = file.getContentType();
+            if (contentType != null && !contentType.startsWith("image/")) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "只能上传图片文件");
+            }
+
+            // 校验文件大小（例如最大 2MB）
+            long maxSize = 2 * 1024 * 1024;
+            if (file.getSize() > maxSize) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "文件大小不能超过 2MB");
+            }
+
+            // 生成文件名：userId_timestamp.extension
+            String extension = getFileExtension(file.getOriginalFilename());
+            String fileName = String.format("avatar/%s_%s%s", userId, System.currentTimeMillis(), ".jpg");
+
+            // 上传到 MinIO
+            minioClient.putObject(
+                    PutObjectArgs.builder()
+                            .bucket(minioConfiguration.getBucket())  // MinIO bucket 名称
+                            .object(fileName)       // 文件名
+                            .stream(file.getInputStream(), file.getSize(), -1)
+                            .contentType(contentType)
+                            .build()
+            );
+            // 获取文件访问URL
+            String avatarUrl = String.format("%s/%s/%s",minioConfiguration.getEndpoint(),minioConfiguration.getBucket(),fileName);
+            // 更新用户头像URL
+            User user = userService.getById(userId);
+            if (user != null) {
+                // 删除旧头像文件（如果存在）
+                String oldAvatarUrl = user.getUserAvatar();
+                if (StringUtils.isNotBlank(oldAvatarUrl)) {
+                    try {
+                        String oldFileName = extractFilePathFromUrl(oldAvatarUrl);
+                        minioClient.removeObject(
+                                RemoveObjectArgs.builder()
+                                        .bucket(minioConfiguration.getBucket())
+                                        .object(oldFileName)
+                                        .build()
+                        );
+                    } catch (Exception e) {
+                        // 记录日志但不影响新文件上传
+                        log.error("删除旧头像文件失败", e);
+                    }
+                }
+                user.setUserAvatar(avatarUrl);
+                userService.updateById(user);
+            }
+            return ResultUtils.success(avatarUrl);
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("文件上传失败", e);
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "文件上传失败");
+        }
+    }
+    /**
+     * 从URL中提取文件路径
+     * 例如：从 http://192.168.124.106:9000/hhoj/avatar/xxx.jpg 提取出 avatar/xxx.jpg
+     */
+    public String extractFilePathFromUrl(String url) {
+        try {
+            if (StringUtils.isBlank(url)) {
+                return null;
+            }
+            // 查找最后一个斜杠之前的 "hhoj/" 位置
+            int bucketIndex = url.lastIndexOf(minioConfiguration.getBucket() + "/");
+            if (bucketIndex != -1) {
+                // 返回 bucket 名称后的路径部分
+                return url.substring(bucketIndex + minioConfiguration.getBucket().length() + 1);
+            }
+            return null;
+        } catch (Exception e) {
+            log.error("提取文件路径失败, url: {}", url, e);
+            return null;
+        }
+    }
+    private String getFileExtension(String filename) {
+        return Optional.ofNullable(filename)
+                .filter(f -> f.contains("."))
+                .map(f -> f.substring(f.lastIndexOf(".")))
+                .orElse("");
     }
 }

@@ -2,6 +2,7 @@ package com.yupi.springbootinit.aop;
 
 import java.util.UUID;
 import javax.servlet.http.HttpServletRequest;
+
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -16,8 +17,8 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 /**
  * 请求响应日志 AOP
  *
- * @author <a href="https://github.com/liyupi">程序员鱼皮</a>
- * @from <a href="https://yupi.icu">编程导航知识星球</a>
+ * @author <a href="https://github.com/MegumiN152">黄昊</a>
+ * @from <a href="http://www.huanghao.icu/">GBC智能BI</a>
  **/
 @Aspect
 @Component

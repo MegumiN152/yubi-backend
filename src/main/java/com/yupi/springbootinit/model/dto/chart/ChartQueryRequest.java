@@ -9,8 +9,8 @@ import java.io.Serializable;
 /**
  * 查询请求
  *
- * @author <a href="https://github.com/liyupi">程序员鱼皮</a>
- * @from <a href="https://yupi.icu">编程导航知识星球</a>
+ * @author <a href="https://github.com/MegumiN152">黄昊</a>
+ * @from <a href="http://www.huanghao.icu/">GBC智能BI</a>
  */
 @EqualsAndHashCode(callSuper = true)
 @Data
@@ -36,6 +36,10 @@ public class ChartQueryRequest extends PageRequest implements Serializable {
      * 用户 id
      */
     private Long userId;
+    /**
+     * 队伍id
+     */
+    private Long teamId;
 
     private static final long serialVersionUID = 1L;
 }

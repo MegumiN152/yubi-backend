@@ -18,10 +18,12 @@ import com.yupi.springbootinit.service.UserService;
 import com.yupi.springbootinit.utils.SqlUtils;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
-import me.chanjar.weixin.common.bean.WxOAuth2UserInfo;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
@@ -30,8 +32,8 @@ import org.springframework.util.DigestUtils;
 /**
  * 用户服务实现
  *
- * @author <a href="https://github.com/liyupi">程序员鱼皮</a>
- * @from <a href="https://yupi.icu">编程导航知识星球</a>
+ * @author <a href="https://github.com/MegumiN152">黄昊</a>
+ * @from <a href="http://www.huanghao.icu/">GBC智能BI</a>
  */
 @Service
 @Slf4j
@@ -40,7 +42,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     /**
      * 盐值，混淆密码
      */
-    private static final String SALT = "yupi";
+    private static final String SALT = "huanghao";
+    @Resource
+    private UserMapper userMapper;
 
     @Override
     public long userRegister(String userAccount, String userPassword, String checkPassword) {
@@ -240,5 +244,41 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         queryWrapper.orderBy(SqlUtils.validSortField(sortField), sortOrder.equals(CommonConstant.SORT_ORDER_ASC),
                 sortField);
         return queryWrapper;
+    }
+    @Override
+    public long userAdd(User user) {
+        //1.校验
+        if(StringUtils.isAnyBlank(user.getUserAccount(),user.getUserPassword())){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR,"参数为空");
+        }
+        if(user.getUserAccount().length() < 4){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR,"用户账号长度过短");
+
+        }
+        if(user.getUserPassword().length() < 8 ){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR,"用户密码长度过短");
+        }
+        // 账户不能包含特殊字符
+        String validPattern = "\\pP|\\pS|\\s+";
+        Matcher matcher = Pattern.compile(validPattern).matcher(user.getUserAccount());
+        if (matcher.find()) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR,"用户账号包含特殊字符");
+        }
+        //3.对密码加密
+        String encryptPassword = DigestUtils.md5DigestAsHex((SALT + user.getUserPassword()).getBytes());
+        //4.插入数据
+        user.setUserPassword(encryptPassword);
+        QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("userAccount", user.getUserAccount());
+        queryWrapper.eq("userPassword", encryptPassword);
+        Long integer = userMapper.selectCount(queryWrapper);
+        if(integer > 0){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR,"用户账号已存在");
+        }
+        boolean saveResult = this.save(user);
+        if(!saveResult){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR,"用户信息保存失败");
+        }
+        return user.getId();
     }
 }

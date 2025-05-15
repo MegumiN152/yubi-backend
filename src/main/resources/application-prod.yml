@@ -1,28 +1,53 @@
 server:
-  port: 8101
+  port: 8080
+  address: 0.0.0.0
+  session:
+    # todo 取消注释开启分布式 session（须先配置 Redis）
+    # store-type: redis
+    # 30 天过期
+    timeout: 2592000
 spring:
   # 数据库配置
   # todo 需替换配置
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/my_db
-    username: root
+    url: jdbc:mysql://47.120.1.180:3306/yubi
+    username: hhh
     password: 123456
   # Redis 配置
   # todo 需替换配置
   redis:
-    database: 1
-    host: localhost
+    database: 0
+    host: 47.120.1.180
     port: 6379
-    timeout: 5000
+    timeout: 10000
     password: 123456
-  # Elasticsearch 配置
-  # todo 需替换配置
-  elasticsearch:
-    uris: http://localhost:9200
-    username: root
-    password: 123456
+  rabbitmq:
+    host: 47.120.1.180
+    port: 5672
+    username: user
+    password: password
+    virtual-host: /
 mybatis-plus:
   configuration:
-    # 生产环境关闭日志
-    log-impl: ''
+    map-underscore-to-camel-case: false
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      logic-delete-field: isDelete # 全局逻辑删除的实体字段名
+      logic-delete-value: 1 # 逻辑已删除值（默认为 1）
+      logic-not-delete-value: 0 # 逻辑未删除值（默认为 0）
+yuapi:
+  client:
+    secret-key: vnso5grkwyfaczttzhb670qd0ro46hny
+    access-key: 94zqap84192euneqnf5woa39l8m3hjaq
+upload:
+  directory: /usr/local/alvinbi
+dsapi:
+  client:
+    api-key: sk-c78ecf4406e14b7380ef66032940a7ef
+xunfei:
+  client:
+    appid: 84241bad
+    apiSecret: OGJiYTFhYTM2ODdlN2VkZTRjNmZiNWU0
+    apiKey: e2521d734c0e774e8d78c6aaba172c0c

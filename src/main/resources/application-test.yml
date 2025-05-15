@@ -16,9 +16,11 @@ spring:
     port: 6379
     timeout: 5000
     password: 123456
-  # Elasticsearch 配置
-  # todo 需替换配置
-  elasticsearch:
-    uris: http://localhost:9200
-    username: root
-    password: 123456
+dsapi:
+  client:
+    api-key: sk-c78ecf4406e14b7380ef66032940a7ef
+xunfei:
+  client:
+    appid: 84241bad
+    apiSecret: OGJiYTFhYTM2ODdlN2VkZTRjNmZiNWU0
+    apiKey: e2521d734c0e774e8d78c6aaba172c0c

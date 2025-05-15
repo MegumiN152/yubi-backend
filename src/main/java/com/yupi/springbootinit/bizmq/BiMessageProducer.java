@@ -16,4 +16,7 @@ public class BiMessageProducer {
     public void sendMessage(String message){
         rabbitTemplate.convertAndSend(BiMqConstant.BI_EXCHANGE_NAME,BiMqConstant.BI_ROUTING_KEY,message);
     }
+    public void sendTeamMessage(String message){
+        rabbitTemplate.convertAndSend(BiMqConstant.BI_TEAM_EXCHANGE_NAME,BiMqConstant.BI_TEAM_ROUTING_KEY,message);
+    }
 }

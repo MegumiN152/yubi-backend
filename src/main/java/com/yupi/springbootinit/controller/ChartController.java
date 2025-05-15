@@ -3,28 +3,22 @@ package com.yupi.springbootinit.controller;
 import cn.hutool.core.io.FileUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.github.rholder.retry.*;
-import com.google.common.base.Predicates;
-import com.google.gson.Gson;
 import com.yupi.springbootinit.annotation.AuthCheck;
 import com.yupi.springbootinit.bizmq.BiMessageProducer;
-import com.yupi.springbootinit.bizmq.BiMqConstant;
 import com.yupi.springbootinit.common.BaseResponse;
 import com.yupi.springbootinit.common.DeleteRequest;
 import com.yupi.springbootinit.common.ErrorCode;
 import com.yupi.springbootinit.common.ResultUtils;
 import com.yupi.springbootinit.constant.CommonConstant;
-import com.yupi.springbootinit.constant.FileConstant;
 import com.yupi.springbootinit.constant.UserConstant;
 import com.yupi.springbootinit.exception.BusinessException;
 import com.yupi.springbootinit.exception.ThrowUtils;
 import com.yupi.springbootinit.manager.AiManager;
 import com.yupi.springbootinit.manager.RedisLimiterManager;
 import com.yupi.springbootinit.model.dto.chart.*;
-import com.yupi.springbootinit.model.dto.file.UploadFileRequest;
+import com.yupi.springbootinit.model.dto.team.ChartAddToTeamRequest;
 import com.yupi.springbootinit.model.entity.Chart;
 import com.yupi.springbootinit.model.entity.User;
-import com.yupi.springbootinit.model.enums.FileUploadBizEnum;
 import com.yupi.springbootinit.model.enums.ResultEnum;
 import com.yupi.springbootinit.service.ChartService;
 import com.yupi.springbootinit.service.UserService;
@@ -33,22 +27,15 @@ import com.yupi.springbootinit.utils.ExcelUtils;
 import com.yupi.springbootinit.utils.InvalidEchartsUtil;
 import com.yupi.springbootinit.utils.SqlUtils;
 import com.yupi.yucongming.dev.client.YuCongMingClient;
-import com.yupi.yucongming.dev.model.DevChatRequest;
-import com.yupi.yucongming.dev.model.DevChatResponse;
-import io.swagger.annotations.ApiOperation;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ObjectUtils;
-import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.util.FileCopyUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
-import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
@@ -57,8 +44,8 @@ import java.util.concurrent.*;
 /**
  * 帖子接口
  *
- * @author <a href="https://github.com/liyupi">程序员鱼皮</a>
- * @from <a href="https://yupi.icu">编程导航知识星球</a>
+ * @author <a href="https://github.com/MegumiN152">黄昊</a>
+ * @from <a href="http://www.huanghao.icu/">GBC智能BI</a>
  */
 @RestController
 @RequestMapping("/chart")
@@ -71,8 +58,6 @@ public class ChartController {
     @Resource
     private UserService userService;
 
-    @Resource
-    private YuCongMingClient yuCongMingClient;
     @Resource
     AiManager aiManager;
 
@@ -130,6 +115,7 @@ public class ChartController {
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
         }
         boolean b = chartService.removeById(id);
+        chartService.dropCollection("chart_"+id);
         return ResultUtils.success(b);
     }
 
@@ -306,17 +292,6 @@ public class ChartController {
         User loginUser = userService.getLoginUser(request);
         // 限流判断，每个用户一个限流器
         redisLimiterManager.doRateLimit("genChartByAi_" + loginUser.getId());
-        // 无需写 prompt，直接调用现有模型，https://www.yucongming.com，公众号搜【鱼聪明AI】
-//        final String prompt = "你是一个数据分析师和前端开发专家，接下来我会按照以下固定格式给你提供内容：\n" +
-//                "分析需求：\n" +
-//                "{数据分析的需求或者目标}\n" +
-//                "原始数据：\n" +
-//                "{csv格式的原始数据，用,作为分隔符}\n" +
-//                "请根据这两部分内容，按照以下指定格式生成内容（此外不要输出任何多余的开头、结尾、注释）\n" +
-//                "【【【【【\n" +
-//                "{前端 Echarts V5 的 option 配置对象js代码，合理地将数据进行可视化，不要生成任何多余的内容，比如注释}\n" +
-//                "【【【【【\n" +
-//                "{明确的数据分析结论、越详细越好，不要生成多余的注释}";
         long biModelId = CommonConstant.BI_MODEL_ID;
         // 分析需求：
         // 分析网站用户的增长情况
@@ -424,7 +399,7 @@ public class ChartController {
                 return;
             }
             //调用ai
-            String result=aiManager.doChat(userInput.toString(),biModelId);
+            String result=aiManager.doChat(userInput.toString());
             String[] split = result.split("【【【【【");
             if(split.length<3){
                handleChartUpdateError(chart.getId(),"AI生成错误");
@@ -483,7 +458,7 @@ public class ChartController {
 
         //拼接提示词、分析目标、和原始数据
         String csvData = ExcelUtils.excelToCsv(multipartFile);
-
+        //创建图表，将图表的原始数据存入数据库中，图表初始状态为WAIT
         Chart chart=new Chart();
         chart.setName(name);
         chart.setGoal(goal);
@@ -494,8 +469,9 @@ public class ChartController {
         boolean saveResult = chartService.save(chart);
         ThrowUtils.throwIf(!saveResult,ErrorCode.SYSTEM_ERROR,"图表保存失败");
         Long newChartId = chart.getId();
+        //将图表的id作为消息存入消息队列
         biMessageProducer.sendMessage(String.valueOf(newChartId));
-        chartService.createTable(chart.getId(), multipartFile);
+        //将图表ID返回给前端
         BiResponse biResponse = new BiResponse();
         biResponse.setChartId(newChartId);
         return ResultUtils.success(biResponse);
@@ -532,7 +508,7 @@ public class ChartController {
         biMessageProducer.sendMessage(String.valueOf(chartId));
         BiResponse biResponse=new BiResponse();
         biResponse.setChartId(chartId);
-        return ResultUtils.success(biResponse) ;
+        return ResultUtils.success(biResponse);
     }
 
     private void handleChartUpdateError(long chartId,String execMessage){
@@ -544,6 +520,27 @@ public class ChartController {
         if (!b){
             log.error("更新图表状态失败"+chartId+" , "+execMessage);
         }
+    }
+    @PostMapping("/add/team")
+    public BaseResponse<Boolean> addChartToTeam(@RequestBody ChartAddToTeamRequest chartAddToTeamRequest, HttpServletRequest request) {
+        if (chartAddToTeamRequest == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        boolean b = chartService.addChartToTeam(chartAddToTeamRequest, request);
+        return ResultUtils.success(b);
+    }
+    /**
+     * 按关键词搜索我的图表（MySQL 实现）
+     */
+    @PostMapping("/my/search/page")
+    public BaseResponse<Page<Chart>> searchMyChart(@RequestBody ChartQueryRequest chartQueryRequest,
+                                                   HttpServletRequest request) {
+        User loginUser = userService.getLoginUser(request);
+        if (loginUser == null) {
+            throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR);
+        }
+        Page<Chart> page = chartService.searchMyCharts(chartQueryRequest);
+        return ResultUtils.success(page);
     }
 
 }

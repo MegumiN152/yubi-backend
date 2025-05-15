@@ -1,15 +1,11 @@
 package com.yupi.springbootinit.utils;
 
 import cn.hutool.core.util.ObjectUtil;
-import cn.hutool.json.JSONArray;
-import cn.hutool.json.JSONException;
-import cn.hutool.json.JSONObject;
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonSyntaxException;
 import com.yupi.springbootinit.common.ErrorCode;
-import com.yupi.springbootinit.constant.CommonConstant;
 import com.yupi.springbootinit.exception.BusinessException;
 import com.yupi.springbootinit.exception.ThrowUtils;
 import com.yupi.springbootinit.manager.AiManager;
@@ -62,9 +58,10 @@ public class ChartDataUtil {
         columnDataList.forEach(stringJoiner::add);
         return stringJoiner.toString();
     }
-    public static ChartGenResult getGenResult(final AiManager aiManager, final  Chart chart) {
+
+    public static ChartGenResult getGenResult(final AiManager aiManager, final Chart chart) {
         String promote = buildUserInput(chart);
-        String resultData = aiManager.doChat(promote, CommonConstant.BI_MODEL_ID);
+        String resultData = aiManager.doChat(promote);
         String[] splits = resultData.split("【【【【【");
         if (splits.length < 3) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "AI 生成错误");
@@ -73,25 +70,28 @@ public class ChartDataUtil {
         String genResult = splits[2].trim();
         return new ChartGenResult(genChart, genResult);
     }
-    public static String buildUserInput(Chart chart){
-        String goal=chart.getGoal();
-        String chartType=chart.getChartType();
-        String csvData=chart.getChartData();
+
+    public static String buildUserInput(Chart chart) {
+        String goal = chart.getGoal();
+        String chartType = chart.getChartType();
+        String csvData = chart.getChartData();
 
         StringBuilder userInput = new StringBuilder();
         userInput.append("分析需求:").append("\n");
-        String userGoal=goal;
-        if (StringUtils.isNotBlank(chartType)){
-            userGoal+=",请使用"+chartType;
+        String userGoal = goal;
+        if (StringUtils.isNotBlank(chartType)) {
+            userGoal += ",请使用" + chartType;
         }
         userInput.append(userGoal).append("\n");
         userInput.append("原始数据:").append("\n");
         userInput.append(csvData).append("\n");
         return userInput.toString();
     }
+
     /**
      * 获取 AI 生成结果
-     * @param aiManager  AI 能力
+     *
+     * @param aiManager AI 能力
      * @param goal
      * @param cvsData
      * @param chartType
@@ -99,16 +99,28 @@ public class ChartDataUtil {
      */
     public static ChartGenResult getGenResult(final AiManager aiManager, final String goal, final String cvsData, final String chartType) {
         String promote = AiManager.PRECONDITION + "分析需求 " + goal + " \n原始数据如下: " + cvsData + "\n生成图表的类型是: " + chartType;
-        String resultData = aiManager.sendMesToAIUseXingHuo(promote);
+        String resultData = aiManager.doChat(promote);
         log.info(resultData);
         log.info("AI 生成的信息: {}", resultData);
-        ThrowUtils.throwIf(resultData.split("'【【【【【'").length < 3, ErrorCode.SYSTEM_ERROR);
-        String genChart = resultData.split("'【【【【【'")[1].trim();
-        String genResult = resultData.split("'【【【【【'")[2].trim();
+        String genChart = null;
+        String genResult = null;
+        if (resultData.contains("'【【【【【'")) {
+            ThrowUtils.throwIf(resultData.split("'【【【【【'").length < 3, ErrorCode.SYSTEM_ERROR);
+            genChart = resultData.split("'【【【【【'")[1].trim();
+            genResult = resultData.split("'【【【【【'")[2].trim();
+        } else if (resultData.contains("【【【【【")) {
+            ThrowUtils.throwIf(resultData.split("【【【【【").length < 3, ErrorCode.SYSTEM_ERROR);
+            genChart = resultData.split("【【【【【")[1].trim();
+            genResult = resultData.split("【【【【【")[2].trim();
+        }
+        if (genChart != null && genChart.charAt(0) == '\"') {
+            genChart = genChart.substring(1, genChart.length() - 1);
+        }
         return new ChartGenResult(genChart, genResult);
     }
-    public static String replaceJson(String jsonString){
-        return jsonString.replace("'","\"");
+
+    public static String replaceJson(String jsonString) {
+        return jsonString.replace("'", "\"");
     }
 
     public static boolean isJsonValid(String jsonString) {
@@ -122,5 +134,6 @@ public class ChartDataUtil {
             return false;
         }
     }
+
 
 }
